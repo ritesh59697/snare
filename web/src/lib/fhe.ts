@@ -76,10 +76,8 @@ async function createMock(): Promise<Fhe> {
 }
 
 async function createRelayer(): Promise<Fhe> {
-  // Self-hosted copy of the relayer SDK browser bundle (see scripts/sync.mjs). Loading it at
-  // runtime keeps the WASM next to the module so its relative URLs resolve.
-  const url = `${import.meta.env.BASE_URL}relayer-sdk/relayer-sdk-js.js`;
-  const sdk = await import(/* @vite-ignore */ url);
+  // The SDK's web build resolves its WASM next to itself, so Vite ships the files as assets.
+  const sdk = await import("@zama-fhe/relayer-sdk/web");
   await sdk.initSDK();
   if (Number(sdk.SepoliaConfig.chainId) !== network.chainId) {
     throw new Error(`Relayer mode supports Sepolia only, but VITE_CHAIN_ID is ${network.chainId}.`);

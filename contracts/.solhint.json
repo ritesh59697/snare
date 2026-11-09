@@ -7,6 +7,9 @@
     "max-line-length": ["error", 120],
     "named-parameters-mapping": "warn",
     "no-console": "off",
-    "not-rely-on-time": "off"
+    "not-rely-on-time": "off",
+    "gas-strict-inequalities": "off",
+    "gas-increment-by-one": "off",
+    "gas-indexed-events": "off"
   }
 }

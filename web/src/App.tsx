@@ -1,9 +1,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Coins,
+  Copy,
+  Fuel,
   HelpCircle,
   Home,
   KeyRound,
+  LoaderCircle,
   Lock,
   Plus,
   Sparkles,
@@ -21,7 +24,7 @@ import { RaiderView } from "./components/RaiderView";
 import { Button, shortAddress } from "./components/ui";
 import * as game from "./lib/game";
 import { type Raid, Status, type Vault } from "./lib/game";
-import { network } from "./lib/network";
+import { addressLink, network } from "./lib/network";
 import { hasInjectedWallet } from "./lib/wallet";
 import { isLocal, useGame } from "./state";
 
@@ -30,6 +33,7 @@ export default function App() {
   return (
     <div className="shell">
       <TopBar />
+      {state.needsGas && state.player && <GasNotice address={state.player.address} />}
       {state.setupError ? (
         <div className="notice notice-danger" role="alert">
           <TriangleAlert size={16} aria-hidden />
@@ -57,8 +61,44 @@ export default function App() {
   );
 }
 
+function GasNotice({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const link = addressLink(address);
+  return (
+    <div className="notice" role="status">
+      <Fuel size={16} aria-hidden />
+      <div>
+        <strong>This player has no Sepolia ETH for gas.</strong>{" "}
+        <span className="muted">
+          Send a little test ETH from any Sepolia faucet to{" "}
+          {link ? (
+            <a className="mono" href={link}>
+              {address}
+            </a>
+          ) : (
+            <span className="mono">{address}</span>
+          )}
+          , or connect your own wallet with the wallet button. A whole game costs a tiny fraction of one test ETH.
+        </span>
+        <div className="controls" style={{ marginTop: "var(--s2)" }}>
+          <Button
+            size="sm"
+            icon={<Copy size={14} aria-hidden />}
+            onClick={() => {
+              void navigator.clipboard?.writeText(address).then(() => setCopied(true));
+            }}
+          >
+            {copied ? "Copied" : "Copy address"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TopBar() {
-  const { player, guests, claimed, gold, config, run, refreshGold, switchGuest, newGuest, connectWallet } = useGame();
+  const { player, guests, claimed, gold, config, fheStatus, run, refreshGold, switchGuest, newGuest, connectWallet } =
+    useGame();
   const [busy, setBusy] = useState(false);
   const activeIndex = guests.findIndex((g) => g.name === player?.name);
 
@@ -76,6 +116,17 @@ function TopBar() {
       <span className={`chip ${isLocal ? "" : "chip-cipher"}`}>
         {isLocal ? "Local chain · FHE mock" : `Sepolia · Zama FHE`} · {network.chainId}
       </span>
+      {fheStatus !== "ready" && (
+        <span className={`chip ${fheStatus === "error" ? "chip-danger" : ""}`} role="status">
+          {fheStatus === "loading" ? (
+            <>
+              <LoaderCircle size={12} className="spin" aria-hidden /> Fetching Zama's FHE key
+            </>
+          ) : (
+            "FHE unavailable"
+          )}
+        </span>
+      )}
       <HowToPlay />
       <div className="spacer" />
       {player && (

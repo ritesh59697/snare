@@ -1,8 +1,8 @@
 import { type Signer, Wallet } from "ethers";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { read, userDecrypt } from "./lib/fhe";
+import { fhe, read, userDecrypt } from "./lib/fhe";
 import { type Config, decodeError, goldHandle, hasClaimed, loadConfig, loadVaults, type Vault } from "./lib/game";
-import { network, txLink } from "./lib/network";
+import { network, provider, txLink } from "./lib/network";
 import * as wallet from "./lib/wallet";
 
 type Toast = { tone: "info" | "error"; message: string; link?: string | null };
@@ -20,6 +20,9 @@ type GameState = {
   guests: wallet.Guest[];
   claimed: boolean;
   gold: bigint | null;
+  /** The current player has no ETH for gas on this chain. */
+  needsGas: boolean;
+  fheStatus: "loading" | "ready" | "error";
   vaults: Vault[];
   selected: number | null;
   building: boolean;
@@ -56,6 +59,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [injected, setInjected] = useState<Player | null>(null);
   const [claimed, setClaimed] = useState(false);
   const [gold, setGold] = useState<bigint | null>(null);
+  const [needsGas, setNeedsGas] = useState(false);
+  const [fheStatus, setFheStatus] = useState<"loading" | "ready" | "error">("loading");
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [building, setBuilding] = useState(false);
@@ -105,6 +110,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+    // Warm up the FHE client early: on Sepolia it downloads Zama's public key, which takes seconds.
+    fhe()
+      .then(() => setFheStatus("ready"))
+      .catch((error) => {
+        setFheStatus("error");
+        setToast({ tone: "error", message: `Could not connect to Zama FHE: ${decodeError(error)}` });
+      });
   }, [refresh]);
 
   useEffect(() => {
@@ -119,7 +131,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           if (!cancelled) setToast({ tone: "error", message: `Faucet failed: ${decodeError(error)}` });
         }
       }
-      if (!cancelled) await refreshGold();
+      if (cancelled) return;
+      setNeedsGas((await provider.getBalance(player.address)) === 0n);
+      await refreshGold();
     })();
     return () => {
       cancelled = true;
@@ -149,6 +163,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     guests: guestList,
     claimed,
     gold,
+    needsGas,
+    fheStatus,
     vaults,
     selected,
     building,

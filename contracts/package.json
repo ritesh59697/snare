@@ -1,5 +1,5 @@
 {
-  "name": "fhevm-hardhat-template",
+  "name": "snare-contracts",
   "description": "Hardhat-based template for developing FHEVM Solidity smart contracts",
   "version": "0.4.1",
   "engines": {
@@ -83,7 +83,8 @@
     "chain": "hardhat node --network hardhat --no-deploy",
     "deploy:localhost": "hardhat deploy --network localhost",
     "deploy:sepolia": "hardhat deploy --network sepolia",
-    "verify:sepolia": "hardhat verify --network sepolia"
+    "verify:sepolia": "hardhat verify --network sepolia",
+    "measure:sepolia": "hardhat --network sepolia snare:measure"
   },
   "overrides": {
     "ws@>=7.0.0 <7.5.10": ">=7.5.10",

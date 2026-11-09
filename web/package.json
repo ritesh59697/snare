@@ -10,7 +10,9 @@
     "prebuild": "node scripts/sync.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:sepolia": "node scripts/sync.mjs && vite --mode sepolia",
+    "build:sepolia": "node scripts/sync.mjs && tsc -b && vite build --mode sepolia"
   },
   "dependencies": {
     "@fhevm/mock-utils": "^0.4.2",

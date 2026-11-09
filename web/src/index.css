@@ -178,7 +178,7 @@ a {
   padding: 0 var(--s3);
   font-size: var(--text-xs);
 }
-.btn .spin {
+.spin {
   animation: spin 900ms linear infinite;
 }
 @keyframes spin {

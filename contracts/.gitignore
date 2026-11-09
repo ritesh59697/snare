@@ -25,3 +25,4 @@ yarn.lock
 
 # local chain deployments are throwaway
 deployments/localhost
+reports/latency-localhost.json

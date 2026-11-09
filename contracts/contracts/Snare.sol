@@ -5,15 +5,18 @@ import {FHE, ebool, euint8, euint64, externalEuint8} from "@fhevm/solidity/lib/F
 import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /// @title Snare
+/// @author Ritesh Kumar
 /// @notice Booby-trap a vault and log off. Raiders run routes against traps that only the
 ///         chain can evaluate, and nobody sees a trap that does not fire.
 /// @dev The vault is an 8x8 grid held in encrypted 64-bit masks: tile `y * 8 + x` is one bit.
 ///      Routes are public. Layouts, outcomes and gold balances are encrypted.
 contract Snare is ZamaEthereumConfig {
-    /// @dev Structural: one tile per bit of a euint64, so these cannot be tuned independently.
+    /// @notice Tiles per row. Structural: one tile per bit of a euint64, so not configurable.
     uint8 public constant GRID_WIDTH = 8;
+    /// @notice Tiles on the grid.
     uint8 public constant TILE_COUNT = 64;
 
+    /// @notice Game parameters, fixed at deployment.
     struct Config {
         uint64 starterGold;
         uint64 ticketPrice;
@@ -26,6 +29,8 @@ contract Snare is ZamaEthereumConfig {
         uint32 vaultLifetime;
     }
 
+    /// @notice Active vaults take raids. Retired vaults are publicly decryptable. Verified vaults
+    ///         have had every raid replayed against the revealed layout.
     enum Status {
         Active,
         Retired,
@@ -43,6 +48,7 @@ contract Snare is ZamaEthereumConfig {
         uint64[] clearStashes;
     }
 
+    /// @notice One raid. The route is public; everything else is ciphertext until retirement.
     struct Raid {
         address raider;
         uint8[] route;
@@ -53,6 +59,7 @@ contract Snare is ZamaEthereumConfig {
         ebool escaped;
     }
 
+    /// @notice A private scan. Only the scanner can decrypt `found`.
     struct Scan {
         uint8 center;
         bool forStash;
@@ -60,19 +67,44 @@ contract Snare is ZamaEthereumConfig {
     }
 
     Config private _config;
+    /// @notice Number of vaults ever created. Vault ids run from 0 to vaultCount - 1.
     uint256 public vaultCount;
 
-    mapping(uint256 vaultId => Vault) private _vaults;
-    mapping(uint256 vaultId => Raid[]) private _raids;
-    mapping(uint256 vaultId => mapping(address scanner => Scan[])) private _scans;
-    mapping(address player => euint64) private _gold;
-    mapping(address player => bool) public hasClaimed;
+    mapping(uint256 vaultId => Vault vault) private _vaults;
+    mapping(uint256 vaultId => Raid[] raids) private _raids;
+    mapping(uint256 vaultId => mapping(address scanner => Scan[] scans)) private _scans;
+    mapping(address player => euint64 balance) private _gold;
+    /// @notice Whether a player has taken the one-time starting gold.
+    mapping(address player => bool claimed) public hasClaimed;
 
+    /// @notice A player took their starting gold.
+    /// @param player The player.
     event StarterClaimed(address indexed player);
+    /// @notice A vault was sealed.
+    /// @param vaultId The new vault.
+    /// @param owner Its owner, or address(0) for a house vault.
+    /// @param expiresAt When it stops taking raids.
     event VaultCreated(uint256 indexed vaultId, address indexed owner, uint64 expiresAt);
+    /// @notice A raid ran. The route is public; the outcome is not.
+    /// @param vaultId The vault raided.
+    /// @param raidIndex Position in the vault's raid list.
+    /// @param raider Who ran it.
+    /// @param route The tiles walked, in order.
     event Raided(uint256 indexed vaultId, uint256 indexed raidIndex, address indexed raider, uint8[] route);
+    /// @notice A scan ran. The scanned tile is public; the answer is not.
+    /// @param vaultId The vault scanned.
+    /// @param scanner Who scanned.
+    /// @param scanIndex Position in the scanner's list for this vault.
+    /// @param center Center of the 3x3 area.
+    /// @param forStash True for a loot scan, false for a trap scan.
     event Scanned(uint256 indexed vaultId, address indexed scanner, uint256 scanIndex, uint8 center, bool forStash);
+    /// @notice A vault retired and its history became publicly decryptable.
+    /// @param vaultId The vault.
     event VaultRetired(uint256 indexed vaultId);
+    /// @notice Every raid of a retired vault was replayed against its revealed layout and matched.
+    /// @param vaultId The vault.
+    /// @param traps The revealed trap mask.
+    /// @param stashes The revealed stash masks.
     event VaultVerified(uint256 indexed vaultId, uint64 traps, uint64[] stashes);
 
     error InvalidConfig();
@@ -81,7 +113,6 @@ contract Snare is ZamaEthereumConfig {
     error WrongLayoutSize();
     error UnknownVault();
     error VaultClosed();
-    error VaultStillActive();
     error NotRetired();
     error OwnVault();
     error NotAllowedToRetire();
@@ -93,8 +124,10 @@ contract Snare is ZamaEthereumConfig {
     error TileRepeated(uint8 tile);
     error ReplayMismatch(uint256 raidIndex);
 
+    /// @notice Deploys the game with fixed parameters.
+    /// @param config_ Game parameters. A wall across the grid takes GRID_WIDTH traps, so the trap
+    ///        count must stay below it to guarantee a clean route exists.
     constructor(Config memory config_) {
-        // A wall across the grid takes GRID_WIDTH traps, so fewer always leaves a clean route.
         if (config_.trapCount == 0 || config_.trapCount >= GRID_WIDTH) revert InvalidConfig();
         if (config_.stashCount == 0) revert InvalidConfig();
         if (config_.maxRouteLength < GRID_WIDTH) revert InvalidConfig();
@@ -121,6 +154,10 @@ contract Snare is ZamaEthereumConfig {
     ///      value lands on the grid. Doubled-up tiles only waste the owner's own budget. If the
     ///      owner cannot afford the stashes they are created empty, since an encrypted balance
     ///      cannot cause a revert without leaking it.
+    /// @param trapTiles Encrypted trap positions, exactly `trapCount` of them.
+    /// @param stashTiles Encrypted stash positions, exactly `stashCount` of them.
+    /// @param inputProof Proof covering every handle above.
+    /// @return vaultId The new vault.
     function createVault(
         externalEuint8[] calldata trapTiles,
         externalEuint8[] calldata stashTiles,
@@ -150,6 +187,7 @@ contract Snare is ZamaEthereumConfig {
 
     /// @notice Spawns a vault whose layout comes from encrypted randomness. Nobody has ever seen
     ///         it, including the deployer and the caller, and it is funded by the game.
+    /// @return vaultId The new vault.
     function createHouseVault() external returns (uint256 vaultId) {
         euint8[] memory traps = new euint8[](_config.trapCount);
         for (uint256 i; i < traps.length; ++i) {
@@ -199,6 +237,9 @@ contract Snare is ZamaEthereumConfig {
     /// @dev The tile a raider is caught on is included in `traveled`, tiles beyond it are not, so a
     ///      raid reveals at most one armed trap to the raider and nothing to anyone else. The outcome
     ///      is unknown inside the transaction, so a raider cannot simulate and revert a bad result.
+    /// @param vaultId The vault to raid.
+    /// @param route Tiles from the bottom row to the top row, each touching the last.
+    /// @return raidIndex Position of this raid in the vault's list.
     function raid(uint256 vaultId, uint8[] calldata route) external returns (uint256 raidIndex) {
         Vault storage vault = _openVault(vaultId);
         if (vault.owner == msg.sender) revert OwnVault();
@@ -282,6 +323,10 @@ contract Snare is ZamaEthereumConfig {
     /// @notice Privately asks whether a 3x3 area around `center` holds a trap or a live stash.
     /// @dev A caller who cannot afford the scan gets an encrypted `false`, because the encrypted
     ///      balance cannot revert. The scanned tile is public, the answer is not.
+    /// @param vaultId The vault to scan.
+    /// @param center Center tile of the 3x3 area.
+    /// @param forStash True to look for unlooted stashes, false to look for traps.
+    /// @return scanIndex Position of this scan in the caller's list for the vault.
     function scan(uint256 vaultId, uint8 center, bool forStash) external returns (uint256 scanIndex) {
         Vault storage vault = _openVault(vaultId);
         if (vault.owner == msg.sender) revert OwnVault();
@@ -314,6 +359,7 @@ contract Snare is ZamaEthereumConfig {
     /// @notice Closes a vault, refunds unlooted stashes and opens the whole history for decryption.
     /// @dev The owner may retire at any time. Anyone may once the vault expired or is full, which is
     ///      the only way a house vault retires.
+    /// @param vaultId The vault to retire.
     function retire(uint256 vaultId) external {
         Vault storage vault = _vaults[vaultId];
         if (vaultId >= vaultCount) revert UnknownVault();
@@ -347,8 +393,9 @@ contract Snare is ZamaEthereumConfig {
         emit VaultRetired(vaultId);
     }
 
-    /// @notice Handles to decrypt for `verifyReveal`, in the exact order the proof must cover:
-    ///         traps, each stash, then jam, traveled, escaped, payout for each raid.
+    /// @notice Handles to decrypt for `verifyReveal`, in the exact order the proof must cover.
+    /// @param vaultId The vault.
+    /// @return handles Traps, each stash, then jam, traveled, escaped and payout for each raid.
     function revealHandles(uint256 vaultId) public view returns (bytes32[] memory handles) {
         Vault storage vault = _vaults[vaultId];
         Raid[] storage raids = _raids[vaultId];
@@ -368,6 +415,9 @@ contract Snare is ZamaEthereumConfig {
 
     /// @notice Checks the decryption proof, then replays every raid in plaintext and reverts unless
     ///         each one matches what the encrypted computation produced at the time.
+    /// @param vaultId A retired vault.
+    /// @param clearValues ABI-encoded cleartexts for `revealHandles(vaultId)`, in that order.
+    /// @param proof The KMS decryption proof for those cleartexts.
     function verifyReveal(uint256 vaultId, bytes calldata clearValues, bytes calldata proof) external {
         Vault storage vault = _vaults[vaultId];
         if (vault.status == Status.Verified) revert VaultClosed();
@@ -375,39 +425,12 @@ contract Snare is ZamaEthereumConfig {
 
         FHE.checkSignatures(revealHandles(vaultId), clearValues, proof);
 
-        uint256 cursor;
-        uint64 traps = uint64(_wordAt(clearValues, cursor++));
-        uint256 stashCount = vault.stashes.length;
-        uint64[] memory stashes = new uint64[](stashCount);
-        bool[] memory taken = new bool[](stashCount);
-        for (uint256 i; i < stashCount; ++i) {
-            stashes[i] = uint64(_wordAt(clearValues, cursor++));
+        uint64 traps = uint64(_wordAt(clearValues, 0));
+        uint64[] memory stashes = new uint64[](vault.stashes.length);
+        for (uint256 i; i < stashes.length; ++i) {
+            stashes[i] = uint64(_wordAt(clearValues, 1 + i));
         }
-
-        Raid[] storage raids = _raids[vaultId];
-        for (uint256 r; r < raids.length; ++r) {
-            uint64 jam = uint64(_wordAt(clearValues, cursor++));
-            uint64 traveled = uint64(_wordAt(clearValues, cursor++));
-            bool escaped = _wordAt(clearValues, cursor++) != 0;
-            uint64 payout = uint64(_wordAt(clearValues, cursor++));
-
-            // A raider who could not pay the ticket never enters, so nothing is traveled.
-            (uint64 expectedTraveled, bool expectedEscaped) = traveled == 0
-                ? (uint64(0), false)
-                : replayRoute(traps, jam, raids[r].route);
-            uint64 expectedPayout;
-            if (expectedEscaped) {
-                for (uint256 i; i < stashCount; ++i) {
-                    if (!taken[i] && stashes[i] & expectedTraveled != 0) {
-                        taken[i] = true;
-                        expectedPayout += _config.stashValue;
-                    }
-                }
-            }
-            if (traveled != expectedTraveled || escaped != expectedEscaped || payout != expectedPayout) {
-                revert ReplayMismatch(r);
-            }
-        }
+        _checkRaids(_raids[vaultId], traps, stashes, clearValues, 1 + stashes.length);
 
         vault.status = Status.Verified;
         vault.clearTraps = traps;
@@ -415,7 +438,49 @@ contract Snare is ZamaEthereumConfig {
         emit VaultVerified(vaultId, traps, stashes);
     }
 
+    /// @dev Replays each raid in order. Stashes are taken by the first escape that crosses them.
+    function _checkRaids(
+        Raid[] storage raids,
+        uint64 traps,
+        uint64[] memory stashes,
+        bytes calldata clearValues,
+        uint256 cursor
+    ) private view {
+        bool[] memory taken = new bool[](stashes.length);
+        for (uint256 r; r < raids.length; ++r) {
+            uint64 jam = uint64(_wordAt(clearValues, cursor));
+            uint64 traveled = uint64(_wordAt(clearValues, cursor + 1));
+            bool escaped = _wordAt(clearValues, cursor + 2) != 0;
+            uint64 payout = uint64(_wordAt(clearValues, cursor + 3));
+            cursor += 4;
+
+            // A raider who could not pay the ticket never enters, so nothing is traveled.
+            (uint64 expectedTraveled, bool expectedEscaped) = traveled == 0
+                ? (uint64(0), false)
+                : replayRoute(traps, jam, raids[r].route);
+            uint64 expectedPayout = expectedEscaped ? _take(stashes, taken, expectedTraveled) : 0;
+            if (traveled != expectedTraveled || escaped != expectedEscaped || payout != expectedPayout) {
+                revert ReplayMismatch(r);
+            }
+        }
+    }
+
+    /// @dev Marks every untaken stash on `traveled` as taken and returns their total value.
+    function _take(uint64[] memory stashes, bool[] memory taken, uint64 traveled) private view returns (uint64 value) {
+        for (uint256 i; i < stashes.length; ++i) {
+            if (!taken[i] && stashes[i] & traveled != 0) {
+                taken[i] = true;
+                value += _config.stashValue;
+            }
+        }
+    }
+
     /// @notice The plaintext twin of the raid loop, so anyone can check a revealed raid.
+    /// @param traps Revealed trap mask.
+    /// @param jam Revealed jam mask of the raid.
+    /// @param route The raid's route.
+    /// @return traveled Tiles walked, including the tile a raider was caught on.
+    /// @return escaped Whether the raider reached the end of the route.
     function replayRoute(
         uint64 traps,
         uint64 jam,
@@ -430,7 +495,9 @@ contract Snare is ZamaEthereumConfig {
         return (traveled, true);
     }
 
-    /// @notice The 3x3 block of tiles around `center`, clipped at the grid edges.
+    /// @notice The 3x3 block of tiles around a tile, clipped at the grid edges.
+    /// @param center The middle tile.
+    /// @return mask One bit per tile in the block.
     function areaMask(uint8 center) public pure returns (uint64 mask) {
         if (center >= TILE_COUNT) revert TileOutOfRange(center);
         int16 width = int16(uint16(GRID_WIDTH));
@@ -448,14 +515,30 @@ contract Snare is ZamaEthereumConfig {
 
     // ------------------------------------------------------------------ views
 
+    /// @notice The game parameters.
+    /// @return The configuration fixed at deployment.
     function config() external view returns (Config memory) {
         return _config;
     }
 
+    /// @notice A player's encrypted gold. Only that player can decrypt it.
+    /// @param player The player.
+    /// @return The encrypted balance handle.
     function goldOf(address player) external view returns (euint64) {
         return _gold[player];
     }
 
+    /// @notice Everything stored about a vault.
+    /// @param vaultId The vault.
+    /// @return owner The owner, or address(0) for a house vault.
+    /// @return expiresAt When it stops taking raids.
+    /// @return status Active, Retired or Verified.
+    /// @return raidCount Raids so far.
+    /// @return traps Encrypted trap mask.
+    /// @return stashes Encrypted stash masks as funded.
+    /// @return remaining Encrypted stash masks still unlooted.
+    /// @return clearTraps Revealed trap mask, once verified.
+    /// @return clearStashes Revealed stash masks, once verified.
     function getVault(
         uint256 vaultId
     )
@@ -488,10 +571,18 @@ contract Snare is ZamaEthereumConfig {
         );
     }
 
+    /// @notice One raid on a vault.
+    /// @param vaultId The vault.
+    /// @param raidIndex Position in its raid list.
+    /// @return The raid record.
     function getRaid(uint256 vaultId, uint256 raidIndex) external view returns (Raid memory) {
         return _raids[vaultId][raidIndex];
     }
 
+    /// @notice Every scan a player made on a vault.
+    /// @param vaultId The vault.
+    /// @param scanner The player.
+    /// @return The scans, oldest first.
     function getScans(uint256 vaultId, address scanner) external view returns (Scan[] memory) {
         return _scans[vaultId][scanner];
     }
@@ -521,14 +612,17 @@ contract Snare is ZamaEthereumConfig {
 
         uint64 seen = uint64(1) << route[0];
         for (uint256 i = 1; i < route.length; ++i) {
-            uint8 from = route[i - 1];
-            uint8 to = route[i];
-            if (to >= TILE_COUNT) revert TileOutOfRange(to);
-            uint64 bit = uint64(1) << to;
-            if (seen & bit != 0) revert TileRepeated(to);
-            seen |= bit;
-            if (!_adjacent(from, to)) revert NotAdjacent(from, to);
+            seen = _step(seen, route[i - 1], route[i]);
         }
+    }
+
+    /// @dev Checks one step of a route and returns the updated set of visited tiles.
+    function _step(uint64 seen, uint8 from, uint8 to) private pure returns (uint64) {
+        if (to >= TILE_COUNT) revert TileOutOfRange(to);
+        uint64 bit = uint64(1) << to;
+        if (seen & bit != 0) revert TileRepeated(to);
+        if (!_adjacent(from, to)) revert NotAdjacent(from, to);
+        return seen | bit;
     }
 
     function _adjacent(uint8 a, uint8 b) private pure returns (bool) {

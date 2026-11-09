@@ -105,7 +105,9 @@ describe("Snare", function () {
       for (const position of [...TRAPS, 0, ...STASHES]) input.add8(position);
       const { handles, inputProof } = await input.encrypt();
       await expect(
-        game.connect(owner).createVault(handles.slice(0, TRAPS.length + 1), handles.slice(TRAPS.length + 1), inputProof),
+        game
+          .connect(owner)
+          .createVault(handles.slice(0, TRAPS.length + 1), handles.slice(TRAPS.length + 1), inputProof),
       ).to.be.revertedWithCustomError(game, "WrongLayoutSize");
     });
 
@@ -218,7 +220,13 @@ describe("Snare", function () {
       const raid = (route: number[]) => game.connect(raider).raid(id, route);
 
       await expect(raid(column(0).slice(0, WIDTH - 1))).to.be.revertedWithCustomError(game, "RouteLength");
-      await expect(raid(column(0).map((t) => t + 0).reverse())).to.be.revertedWithCustomError(game, "BadStart");
+      await expect(
+        raid(
+          column(0)
+            .map((t) => t + 0)
+            .reverse(),
+        ),
+      ).to.be.revertedWithCustomError(game, "BadStart");
       await expect(raid([...column(0).slice(0, 7), tile(1, 6)])).to.be.revertedWithCustomError(game, "BadExit");
       await expect(raid([0, 1, 2, 3, 4, 5, 6, 7, 15, 23, 31, 39, 47, 55, 63, 64])).to.be.revertedWithCustomError(
         game,
@@ -255,8 +263,12 @@ describe("Snare", function () {
       }
       expect(route.length).to.eq(config.maxRouteLength);
       expect(route[route.length - 1]).to.be.at.least(WIDTH * (WIDTH - 1));
+      // Zama's HCULimit contract runs inside the mock and reverts on overflow, so reaching here proves the fit.
       const receipt = await (await game.connect(raider).raid(id, route)).wait();
-      console.log(`      route of ${route.length} tiles used ${receipt!.gasUsed} gas`);
+      const hcu = fhevm.computeTransactionHCU(receipt!);
+      console.log(
+        `      route of ${route.length} tiles: ${receipt!.gasUsed} gas, ${hcu.globalHCU} HCU, depth ${hcu.maxHCUDepth}`,
+      );
     });
   });
 
@@ -294,7 +306,17 @@ describe("Snare", function () {
       expect(await game.areaMask(tile(0, 0))).to.eq(maskOf([0, 1, 8, 9]));
       expect(await game.areaMask(tile(7, 7))).to.eq(maskOf([54, 55, 62, 63]));
       expect(await game.areaMask(tile(3, 3))).to.eq(
-        maskOf([tile(2, 2), tile(3, 2), tile(4, 2), tile(2, 3), tile(3, 3), tile(4, 3), tile(2, 4), tile(3, 4), tile(4, 4)]),
+        maskOf([
+          tile(2, 2),
+          tile(3, 2),
+          tile(4, 2),
+          tile(2, 3),
+          tile(3, 3),
+          tile(4, 3),
+          tile(2, 4),
+          tile(3, 4),
+          tile(4, 4),
+        ]),
       );
       await expect(game.areaMask(64)).to.be.revertedWithCustomError(game, "TileOutOfRange");
     });
@@ -425,7 +447,10 @@ describe("Snare", function () {
   describe("constructor", function () {
     it("refuses a trap budget that could wall off the grid", async function () {
       const factory = (await ethers.getContractFactory("Snare")) as Snare__factory;
-      await expect(factory.deploy({ ...config, trapCount: WIDTH })).to.be.revertedWithCustomError(game, "InvalidConfig");
+      await expect(factory.deploy({ ...config, trapCount: WIDTH })).to.be.revertedWithCustomError(
+        game,
+        "InvalidConfig",
+      );
     });
   });
 });

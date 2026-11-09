@@ -9,12 +9,21 @@ import type { HardhatUserConfig } from "hardhat/config";
 import { vars } from "hardhat/config";
 import "solidity-coverage";
 
+import { existsSync } from "node:fs";
 import "./tasks/accounts";
+import "./tasks/snare";
 
-// Run 'npx hardhat vars setup' to see the list of variables that need to be set
+// Secrets for public networks live in a git-ignored contracts/.env (see .env.example).
+// Hardhat vars still work as a fallback.
+if (existsSync(".env")) process.loadEnvFile(".env");
+const setting = (name: string, fallback: string) => process.env[name] || vars.get(name, fallback);
 
-const MNEMONIC: string = vars.get("MNEMONIC", "test test test test test test test test test test test junk");
-const INFURA_API_KEY: string = vars.get("INFURA_API_KEY", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+const MNEMONIC: string = setting("MNEMONIC", "test test test test test test test test test test test junk");
+const INFURA_API_KEY: string = setting("INFURA_API_KEY", "");
+const SEPOLIA_RPC_URL: string = setting(
+  "SEPOLIA_RPC_URL",
+  INFURA_API_KEY ? `https://sepolia.infura.io/v3/${INFURA_API_KEY}` : "",
+);
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
@@ -23,7 +32,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
+      sepolia: setting("ETHERSCAN_API_KEY", ""),
     },
   },
   gasReporter: {
@@ -54,7 +63,7 @@ const config: HardhatUserConfig = {
         count: 10,
       },
       chainId: 11155111,
-      url: `https://sepolia.infura.io/v3/${INFURA_API_KEY}`,
+      url: SEPOLIA_RPC_URL,
     },
   },
   paths: {

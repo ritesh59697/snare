@@ -1,0 +1,11 @@
+{
+  "starterGold": 1000,
+  "ticketPrice": 50,
+  "scanPrice": 10,
+  "stashValue": 100,
+  "trapCount": 7,
+  "stashCount": 3,
+  "maxRouteLength": 20,
+  "maxRaidsPerVault": 20,
+  "vaultLifetime": 259200
+}

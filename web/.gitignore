@@ -25,5 +25,4 @@ dist-ssr
 
 # generated
 src/generated
-public/relayer-sdk
 .env.local
