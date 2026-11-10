@@ -1,0 +1,36 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contract": "0xc65D10862B242c2541E46296EBb4c5dc8F93a6B0",
+  "vaultId": 2,
+  "measuredAt": "2026-11-10T05:58:02.706Z",
+  "results": {
+    "scanFoundTrapNearA1": false,
+    "raidEscaped": true,
+    "raidPayout": "300"
+  },
+  "timingsMs": {
+    "encrypt layout (client)": 6796,
+    "create vault": 8332,
+    "scan": 11560,
+    "user decrypt scan": 3381,
+    "raid": 9479,
+    "user decrypt raid outcome": 7597,
+    "user decrypt payout": 2948,
+    "retire": 12376,
+    "public decrypt history": 4392,
+    "verify reveal (on-chain replay)": 8446
+  },
+  "gasUsed": {
+    "create vault": "3425336",
+    "scan": "872339",
+    "raid": "5204833",
+    "retire": "1471652",
+    "verify reveal (on-chain replay)": "745976"
+  },
+  "fees": {
+    "maxFeePerGas": "160",
+    "maxPriorityFeePerGas": "50"
+  },
+  "ownerSpentWei": "366792660"
+}

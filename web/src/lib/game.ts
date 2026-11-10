@@ -132,6 +132,7 @@ async function sent(tx: Promise<{ hash: string; wait(): Promise<ContractTransact
   const response = await tx;
   const receipt = await response.wait();
   if (!receipt || receipt.status !== 1) throw new Error("Transaction failed.");
+  provider.pinAfterWrite(receipt.blockNumber);
   return { hash: response.hash, receipt, ms: performance.now() - started };
 }
 

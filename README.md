@@ -9,8 +9,9 @@ offline, and nobody, including the raider, learns where an unfired trap is.
 
 | | |
 |---|---|
-| Network | Sepolia testnet (deployment pending, see [Deploy](#deploy-to-sepolia)) |
-| Contract | [`contracts/contracts/Snare.sol`](contracts/contracts/Snare.sol) |
+| Network | Sepolia testnet |
+| Contract | [`0xc65D10862B242c2541E46296EBb4c5dc8F93a6B0`](https://sepolia.etherscan.io/address/0xc65D10862B242c2541E46296EBb4c5dc8F93a6B0) |
+| Source | [`contracts/contracts/Snare.sol`](contracts/contracts/Snare.sol) |
 | Tests | 30 passing on Zama's FHE mock (`cd contracts && npm test`) |
 | Frontend | [`web/`](web), Vite + React, Zama relayer SDK |
 
@@ -101,8 +102,23 @@ scalar `ne`), which are among the cheapest, so a full raid is a single transacti
 | Longest allowed raid, HCU depth | 1,944,065 (docs limit: 5,000,000) |
 | Longest allowed raid, gas | 2,785,100 |
 
-Sepolia timings will be recorded by `npm run measure:sepolia` into
-`contracts/reports/latency-sepolia.json` after deployment.
+### Measured on Sepolia
+
+One full round played by `npm run measure:sepolia` on 2026-11-10 (raw numbers in
+[`contracts/reports/latency-sepolia.json`](contracts/reports/latency-sepolia.json)). Times include
+waiting for the block and, for decryptions, for Zama's relayer.
+
+| Step | Time | Gas |
+|---|---|---|
+| Encrypt a layout in the client | 6.8s | n/a |
+| Create a vault | 8.3s | 3,425,336 |
+| Scan, then decrypt the answer | 11.6s + 3.4s | 872,339 |
+| Raid, then decrypt the outcome | 9.5s + 7.6s | 5,204,833 |
+| Retire | 12.4s | 1,471,652 |
+| Public decryption of the history, then on-chain replay | 4.4s + 8.4s | 745,976 |
+
+In the browser, a raid takes about 16 seconds from click to the animated result. The app covers the
+wait with the run animation; the board stays usable between raids.
 
 ## Run it locally
 
