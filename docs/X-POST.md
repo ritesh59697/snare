@@ -14,5 +14,5 @@ route against traps nobody can see.
 - house vaults laid out by onchain encrypted randomness
 - when a vault retires, the contract replays every raid to prove it was fair
 
-Live on Sepolia: <link>
-Code: <link>
+Live on Sepolia: https://snare-ashy.vercel.app
+Code: https://github.com/ritesh59697/snare

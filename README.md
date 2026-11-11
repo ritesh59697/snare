@@ -9,6 +9,7 @@ offline, and nobody, including the raider, learns where an unfired trap is.
 
 | | |
 |---|---|
+| Play | **https://snare-ashy.vercel.app** |
 | Network | Sepolia testnet |
 | Contract | [`0xc65D10862B242c2541E46296EBb4c5dc8F93a6B0`](https://sepolia.etherscan.io/address/0xc65D10862B242c2541E46296EBb4c5dc8F93a6B0) |
 | Source | [`contracts/contracts/Snare.sol`](contracts/contracts/Snare.sol) |
