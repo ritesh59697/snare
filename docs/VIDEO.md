@@ -3,9 +3,10 @@
 Zama requires a real person on camera or voice. AI video or voice is not accepted. Record your
 screen with your own voice over it (a webcam corner is a bonus).
 
-**Before recording:** open the Sepolia build with two guest players that both have test ETH and
-gold. As player A, rig a vault ahead of time and let player B raid it two or three times, so the
-owner view has history. Keep one house vault open with no raids.
+**Before recording:** open the live site with two guest players (the person icon in the top bar
+adds one) and claim gold for both. The site sends each guest its gas, so no faucet is needed. As
+player A, rig a vault ahead of time and let player B raid it two or three times, so the owner view
+has history. Keep one house vault open with no raids.
 
 | Time | On screen | Say (in your own words) |
 |---|---|---|
@@ -13,7 +14,7 @@ owner view has history. Keep one house vault open with no raids.
 | 0:15 | Snare home screen | "Snare is a raid game where traps stay hidden on-chain, using Zama's encryption." |
 | 0:25 | Open the house vault | "This vault was laid out by encrypted randomness. Nobody has ever seen it, not even me." |
 | 0:40 | Scan a corner, show the private answer | "A scan asks the chain a private question. Only I can read the answer." |
-| 0:55 | Spy panel: raw handles, then "decrypt as a stranger" refused | "This is all anyone else sees: ciphertext. A stranger trying to decrypt gets refused." |
+| 0:55 | Scroll to "What the chain shows everyone" under the board: raw handles, then "Try to decrypt the traps as a stranger" refused | "This is all anyone else sees: ciphertext. A stranger trying to decrypt gets refused." |
 | 1:10 | Draw a route and raid. Show the walk and the snap (or the escape) | "The contract walks my route over encrypted traps. Even I don't know the result until I decrypt it." |
 | 1:40 | If a trap clicked: point at the "click" badge | "Every raid jams about a quarter of the traps with fresh randomness, so sometimes a trap clicks and you live." |
 | 1:55 | Switch to player A, owner view with the raid feed | "The owner logged off. Raids still happened, and only the owner and each raider can read how they went." |
