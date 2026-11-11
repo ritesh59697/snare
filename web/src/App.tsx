@@ -4,8 +4,6 @@ import {
   Copy,
   Fuel,
   HelpCircle,
-  Home,
-  KeyRound,
   LoaderCircle,
   Lock,
   Plus,
@@ -21,7 +19,7 @@ import { BooksView } from "./components/BooksView";
 import { BuildView } from "./components/BuildView";
 import { OwnerView } from "./components/OwnerView";
 import { RaiderView } from "./components/RaiderView";
-import { Button, shortAddress } from "./components/ui";
+import { Button, duration, shortAddress } from "./components/ui";
 import * as game from "./lib/game";
 import { type Raid, Status, type Vault } from "./lib/game";
 import { addressLink, network } from "./lib/network";
@@ -33,27 +31,35 @@ export default function App() {
   return (
     <div className="shell">
       <TopBar />
-      {state.needsGas && state.player && <GasNotice address={state.player.address} />}
-      {state.setupError ? (
-        <div className="notice notice-danger" role="alert">
-          <TriangleAlert size={16} aria-hidden />
-          <div>
-            <strong>Can't reach the game contract.</strong>
-            <div className="muted">{state.setupError}</div>
+      <div className="banners">
+        {state.needsGas && state.player && <GasNotice address={state.player.address} />}
+        {state.setupError && (
+          <div className="notice notice-danger" role="alert">
+            <TriangleAlert size={16} aria-hidden />
+            <div>
+              <strong>Can't reach the game contract</strong>
+              <div>{state.setupError}</div>
+              <div className="controls" style={{ marginTop: "var(--s3)" }}>
+                <Button size="sm" onClick={() => void state.refresh()}>
+                  Try again
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
-      ) : (
+        )}
+      </div>
+      {!state.setupError && (
         <div className="layout">
           <Sidebar />
-          <main>{state.building ? <BuildStage /> : <VaultStage />}</main>
+          <main className="main">{state.building ? <BuildStage /> : <VaultStage />}</main>
         </div>
       )}
       {state.toast && (
         <div className="toast" data-tone={state.toast.tone} role="status" aria-live="polite">
           <span>{state.toast.message}</span>
           {state.toast.link && <a href={state.toast.link}>View</a>}
-          <button type="button" className="btn btn-ghost btn-sm" aria-label="Dismiss" onClick={() => state.notify(null)}>
-            <X size={14} aria-hidden />
+          <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label="Dismiss" onClick={() => state.notify(null)}>
+            <X size={16} aria-hidden />
           </button>
         </div>
       )}
@@ -68,8 +74,9 @@ function GasNotice({ address }: { address: string }) {
     <div className="notice" role="status">
       <Fuel size={16} aria-hidden />
       <div>
-        <strong>This player has no Sepolia ETH for gas.</strong>{" "}
-        <span className="muted">
+        <strong>This player has no Sepolia ETH for gas</strong>
+        <br />
+        <span>
           Send a little test ETH from any Sepolia faucet to{" "}
           {link ? (
             <a className="mono" href={link}>
@@ -80,7 +87,7 @@ function GasNotice({ address }: { address: string }) {
           )}
           , or connect your own wallet with the wallet button. A whole game costs a tiny fraction of one test ETH.
         </span>
-        <div className="controls" style={{ marginTop: "var(--s2)" }}>
+        <div className="controls" style={{ marginTop: "var(--s3)" }}>
           <Button
             size="sm"
             icon={<Copy size={14} aria-hidden />}
@@ -110,29 +117,33 @@ function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="wordmark">
-        SNARE <small>trap a vault, log off, let them try</small>
+      <div className="brand">
+        <svg className="brand-mark" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path d="M3 13V3h10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="brand-name">Snare</span>
+        <span className="brand-line">Trap a vault, log off, let them try</span>
       </div>
-      <span className={`chip ${isLocal ? "" : "chip-cipher"}`}>
-        {isLocal ? "Local chain · FHE mock" : `Sepolia · Zama FHE`} · {network.chainId}
-      </span>
-      {fheStatus !== "ready" && (
-        <span className={`chip ${fheStatus === "error" ? "chip-danger" : ""}`} role="status">
-          {fheStatus === "loading" ? (
-            <>
-              <LoaderCircle size={12} className="spin" aria-hidden /> Fetching Zama's FHE key
-            </>
-          ) : (
-            "FHE unavailable"
-          )}
-        </span>
-      )}
-      <HowToPlay />
       <div className="spacer" />
+      <span className="net" role="status">
+        {fheStatus === "loading" ? (
+          <LoaderCircle size={12} className="spin" aria-hidden />
+        ) : (
+          <span className="dot" data-state={fheStatus} />
+        )}
+        {fheStatus === "loading"
+          ? "Fetching Zama's FHE key"
+          : fheStatus === "error"
+            ? "FHE unavailable"
+            : isLocal
+              ? "Local chain · FHE mock"
+              : "Sepolia · Zama FHE"}
+        <span className="mono">{network.chainId}</span>
+      </span>
+      <HowToPlay />
       {player && (
         <div className="player">
-          <KeyRound size={16} aria-hidden className="muted" />
-          <div>
+          <div className="player-id">
             <label className="sr-only" htmlFor="player-select">
               Player
             </label>
@@ -154,25 +165,25 @@ function TopBar() {
             )}
             <div className="player-address">{shortAddress(player.address)}</div>
           </div>
-          <Button size="sm" tone="ghost" aria-label="New guest player" title="New guest player" onClick={newGuest}>
+          <Button size="sm" tone="ghost" className="btn-icon" aria-label="New guest player" title="New guest player" onClick={newGuest}>
             <UserPlus size={16} aria-hidden />
           </Button>
           {hasInjectedWallet() && player.kind === "guest" && (
-            <Button size="sm" tone="ghost" aria-label="Use my wallet" title="Use my browser wallet" onClick={() => void connectWallet()}>
+            <Button size="sm" tone="ghost" className="btn-icon" aria-label="Use my wallet" title="Use my browser wallet" onClick={() => void connectWallet()}>
               <Wallet size={16} aria-hidden />
             </Button>
           )}
-          <div className="gold" aria-live="polite">
-            <Coins size={16} aria-hidden />
+          <div className="gold" data-claimed={claimed} aria-live="polite">
+            {claimed && <Coins size={16} aria-hidden />}
             {claimed ? (
               gold === null ? (
                 <span className="muted">decrypting</span>
               ) : (
-                <span title="Decrypted in your browser. On-chain it is ciphertext.">{gold.toString()}</span>
+                <span title="Decrypted in your browser. On-chain it is ciphertext.">{gold.toLocaleString("en-US")}</span>
               )
             ) : (
               <Button size="sm" tone="primary" busy={busy || funding} onClick={claim}>
-                Claim {config?.starterGold.toString() ?? ""} gold
+                Claim {config?.starterGold.toLocaleString("en-US") ?? ""} gold
               </Button>
             )}
           </div>
@@ -242,11 +253,37 @@ function Sidebar() {
     setBusy(false);
   }
 
+  const row = (v: Vault) => {
+    const mine = player && v.owner.toLowerCase() === player.address.toLowerCase();
+    const open = game.isOpen(v, config, now);
+    const state =
+      v.status === Status.Active ? (!open ? "ended" : mine ? "mine" : "open") : v.status === Status.Retired ? "retired" : "verified";
+    const status = { ended: "Ended", mine: "Yours", open: duration(v.expiresAt - now), retired: "Retired", verified: "Verified" }[state];
+    return (
+      <li key={v.id}>
+        <button type="button" className="vault-item" aria-current={selected === v.id} onClick={() => select(v.id)}>
+          <span className="vault-number">{v.id + 1}</span>
+          <span className="vault-meta">
+            <strong>{v.isHouse ? "House vault" : mine ? "Your vault" : (nameOf(v.owner) ?? shortAddress(v.owner))}</strong>
+            <span>
+              {v.raidCount}/{config?.maxRaidsPerVault ?? "?"} raids
+            </span>
+          </span>
+          <span className="vault-status" data-state={state} title={state === "open" ? "Time left to raid" : undefined}>
+            {state === "mine" ? <Lock size={12} strokeWidth={1.5} aria-hidden /> : <span className="dot" data-state={state} />}
+            {status}
+          </span>
+        </button>
+      </li>
+    );
+  };
+  const open = vaults.filter((v) => game.isOpen(v, config, now));
+  const closed = vaults.filter((v) => !game.isOpen(v, config, now));
+
   return (
     <aside className="sidebar" aria-label="Vaults">
-      <h2>Vaults</h2>
       <div className="sidebar-actions">
-        <Button tone={building ? "primary" : "default"} icon={<Plus size={16} aria-hidden />} onClick={() => setBuilding(true)}>
+        <Button aria-pressed={building} icon={<Plus size={16} aria-hidden />} onClick={() => setBuilding(true)}>
           Rig a vault
         </Button>
         <Button
@@ -263,38 +300,24 @@ function Sidebar() {
       {vaults.length === 0 ? (
         <p className="empty">No vaults yet. Open a house vault to raid one nobody has ever seen, or rig your own.</p>
       ) : (
-        <ul className="vault-list">
-          {vaults.map((v) => {
-            const mine = player && v.owner.toLowerCase() === player.address.toLowerCase();
-            const status =
-              v.status === Status.Active
-                ? !game.isOpen(v, config, now)
-                  ? "ended"
-                  : mine
-                    ? "your vault"
-                    : "open"
-                : v.status === Status.Retired
-                  ? "retired"
-                  : "verified";
-            return (
-              <li key={v.id}>
-                <button type="button" className="vault-item" aria-current={selected === v.id} onClick={() => select(v.id)}>
-                  <span className="vault-number">{v.id + 1}</span>
-                  <span className="vault-meta">
-                    <strong>{v.isHouse ? "House vault" : `${nameOf(v.owner) ?? shortAddress(v.owner)}'s vault`}</strong>
-                    <span>
-                      {v.raidCount}/{config?.maxRaidsPerVault ?? "?"} raids
-                    </span>
-                  </span>
-                  <span className={`chip ${status === "open" ? "chip-accent" : status === "verified" ? "chip-loot" : ""}`}>
-                    {v.isHouse ? <Home size={12} aria-hidden /> : mine ? <Lock size={12} aria-hidden /> : null}
-                    {status}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          {open.length > 0 && (
+            <section className="vault-group">
+              <h2>
+                Open to raid <span className="mono">{open.length}</span>
+              </h2>
+              <ul className="vault-list">{open.map(row)}</ul>
+            </section>
+          )}
+          {closed.length > 0 && (
+            <section className="vault-group">
+              <h2>
+                Closed <span className="mono">{closed.length}</span>
+              </h2>
+              <ul className="vault-list">{closed.map(row)}</ul>
+            </section>
+          )}
+        </>
       )}
     </aside>
   );
@@ -306,7 +329,7 @@ function BuildStage() {
       <div className="stage-head">
         <div>
           <h1 className="stage-title">Rig a vault</h1>
-          <p className="stage-sub">Hide your traps where nobody would step. Nobody will ever see them unless they get caught.</p>
+          <p className="stage-sub">Hide your traps where nobody would step. Nobody sees one unless it catches them</p>
         </div>
       </div>
       <BuildView />
@@ -341,8 +364,8 @@ function VaultStage() {
 
   if (selected === null || !vault || vault.id !== selected) {
     return (
-      <div className="empty" style={{ display: "flex", gap: "var(--s3)", alignItems: "center" }}>
-        <VaultIcon size={20} aria-hidden />
+      <div className="empty empty-inline">
+        <VaultIcon size={16} strokeWidth={1.5} aria-hidden />
         {vaults.length === 0 ? "Pick an action on the left to start." : "Opening the vault…"}
       </div>
     );
@@ -352,12 +375,12 @@ function VaultStage() {
   const title = vault.isHouse ? "House vault" : mine ? "Your vault" : `${nameOf(vault.owner) ?? shortAddress(vault.owner)}'s vault`;
   const subtitle =
     vault.status !== Status.Active
-      ? "Retired. Its secrets are public now."
+      ? "Retired, so its secrets are public now"
       : mine
-        ? "Watching your traps work while you're away."
+        ? "Your traps keep working while you're away"
         : vault.isHouse
-          ? "Laid out by encrypted randomness. Nobody alive has seen it."
-          : "Plan a route, scan if you dare, then run it.";
+          ? "Laid out by encrypted randomness, so nobody alive has seen it"
+          : "Plan a route, scan if you dare, then run it";
 
   return (
     <>

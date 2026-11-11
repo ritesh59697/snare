@@ -42,6 +42,11 @@ type GameState = {
   run<T>(label: string, action: (signer: Signer) => Promise<T>): Promise<T | undefined>;
 };
 
+const TOAST_MS = 5000;
+/** A public RPC drops the odd request; the first load tries this many times before it gives up. */
+const LOAD_ATTEMPTS = 3;
+const LOAD_RETRY_MS = 1200;
+
 const Context = createContext<GameState | null>(null);
 
 export function useGame(): GameState {
@@ -86,13 +91,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [guestList, injected]);
 
   const refresh = useCallback(async () => {
-    try {
-      const [cfg, list] = await Promise.all([loadConfig(), loadVaults()]);
-      setConfig(cfg);
-      setVaults(list);
-      setSetupError(null);
-    } catch (error) {
-      setSetupError(decodeError(error));
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const [cfg, list] = await Promise.all([loadConfig(), loadVaults()]);
+        setConfig(cfg);
+        setVaults(list);
+        setSetupError(null);
+        return;
+      } catch (error) {
+        if (attempt >= LOAD_ATTEMPTS) return setSetupError(decodeError(error));
+        await new Promise((resolve) => setTimeout(resolve, LOAD_RETRY_MS * attempt));
+      }
     }
   }, []);
 
@@ -149,6 +158,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [player, refreshGold]);
+
+  // Finished messages clear themselves; progress ("…") and errors stay until replaced or dismissed.
+  useEffect(() => {
+    if (!toast || toast.tone !== "info" || toast.message.endsWith("…")) return;
+    const timer = setTimeout(() => setToast(null), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const run = useCallback(
     async <T,>(label: string, action: (signer: Signer) => Promise<T>) => {

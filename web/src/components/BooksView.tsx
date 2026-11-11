@@ -15,7 +15,7 @@ type Replayed = Outcome & { jam: bigint; matches: boolean };
 
 /** A retired vault: open the books, then replay every raid against the revealed layout. */
 export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[]; reload(): Promise<void> }) {
-  const { config, run, nameOf } = useGame();
+  const { config, run, nameOf, refresh } = useGame();
   const [history, setHistory] = useState<Replayed[]>([]);
   const [busy, setBusy] = useState(false);
   const [proof, setProof] = useState<{ hash: string; decryptMs: number; ms: number } | null>(null);
@@ -72,6 +72,7 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
     if (result) {
       setProof({ hash: result.hash, decryptMs: result.decryptMs, ms: result.ms });
       await reload();
+      await refresh();
     }
     setBusy(false);
   }
@@ -82,7 +83,7 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
 
   return (
     <div className="stage">
-      <div>
+      <div className="stage-board">
         <Board
           label={`Vault ${vault.id + 1}, revealed layout`}
           route={p?.route}
@@ -96,26 +97,28 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
           </div>
         )}
       </div>
-      <div>
+      <div className="side">
         {!verified ? (
           <div className="panel">
             <h3>Retired</h3>
-            <p style={{ marginTop: 0 }}>
+            <p>
               The layout and every raid are now publicly decryptable. Anyone can open the books: the chain checks Zama's
-              decryption proof, then replays all {vault.raidCount} raids in plaintext and refuses if a single one disagrees
-              with what the encrypted game decided at the time.
+              decryption proof, then replays every raid in plaintext and refuses if a single one disagrees with what the
+              encrypted game decided at the time.
             </p>
-            <Button tone="primary" icon={<BookOpen size={16} aria-hidden />} busy={busy} onClick={openBooks}>
-              Open the books
-            </Button>
+            <div className="controls">
+              <Button tone="primary" icon={<BookOpen size={16} aria-hidden />} busy={busy} onClick={openBooks}>
+                Open the books
+              </Button>
+            </div>
             {error && <p className="hint">{error}</p>}
           </div>
         ) : (
           <div className="panel result" data-tone="escaped">
-            <p className="result-title" style={{ display: "flex", alignItems: "center", gap: "var(--s2)" }}>
-              <BadgeCheck size={28} aria-hidden /> Books verified
+            <p className="result-title">
+              <BadgeCheck size={20} strokeWidth={1.5} aria-hidden /> Books verified
             </p>
-            <p style={{ margin: 0 }}>
+            <p>
               The contract replayed {vault.raidCount} raid{vault.raidCount === 1 ? "" : "s"} against the revealed layout and
               every outcome matched.
             </p>
@@ -130,9 +133,9 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
 
         {verified && (
           <div className="panel">
-            <h3>Replay any raid {allMatch && <span className="chip chip-loot">all match</span>}</h3>
+            <h3>Replay any raid {allMatch && <span className="tag">All match</span>}</h3>
             {history.length === 0 ? (
-              <p className="muted" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
+              <p className="hint" style={{ marginTop: 0 }}>
                 {vault.raidCount === 0 ? "Nobody raided this vault." : "Loading the history…"}
               </p>
             ) : (
@@ -143,9 +146,9 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
                     <span>
                       {summary(h, config.stashValue)}{" "}
                       {h.matches ? (
-                        <Check size={14} aria-label="matches replay" style={{ color: "var(--loot)", verticalAlign: "-2px" }} />
+                        <Check size={14} aria-label="matches replay" className="ledger-mark" style={{ color: "var(--loot)" }} />
                       ) : (
-                        <X size={14} aria-label="does not match" style={{ color: "var(--destructive)" }} />
+                        <X size={14} aria-label="does not match" className="ledger-mark" style={{ color: "var(--destructive)" }} />
                       )}
                     </span>
                     <Button size="sm" tone="ghost" onClick={() => playback.play(h)}>
@@ -157,11 +160,9 @@ export function BooksView({ vault, raids, reload }: { vault: Vault; raids: Raid[
             )}
           </div>
         )}
-
-        <div className="panel" style={{ padding: 0, border: 0, background: "none" }}>
-          <SpyPanel vault={vault} raids={raids} />
-        </div>
       </div>
+
+      <SpyPanel vault={vault} raids={raids} />
     </div>
   );
 }

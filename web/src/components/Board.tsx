@@ -1,4 +1,4 @@
-import { Bomb, Gem } from "lucide-react";
+import { ArrowUpFromLine, ArrowUpToLine, Bomb, Gem } from "lucide-react";
 import { WIDTH, isEntry, isExit, tileName, tileOf, xOf, yOf } from "../lib/grid";
 
 export type CellView = {
@@ -19,13 +19,15 @@ type Props = {
   views?: Map<number, CellView>;
   runnerAt?: number | null;
   isClickable?: (tile: number) => boolean;
+  /** Tiles that would be the next step of a route being drawn; they get a small marker. */
+  isNext?: (tile: number) => boolean;
   onTile?: (tile: number) => void;
 };
 
 const rows = Array.from({ length: WIDTH }, (_, i) => WIDTH - 1 - i);
 const columns = Array.from({ length: WIDTH }, (_, x) => x);
 
-export function Board({ label, route = [], shown, views, runnerAt = null, isClickable, onTile }: Props) {
+export function Board({ label, route = [], shown, views, runnerAt = null, isClickable, isNext, onTile }: Props) {
   const visible = route.slice(0, shown ?? route.length);
   const order = new Map(visible.map((tile, i) => [tile, i]));
   const points = visible.map((t) => `${xOf(t) + 0.5},${WIDTH - 1 - yOf(t) + 0.5}`).join(" ");
@@ -33,9 +35,16 @@ export function Board({ label, route = [], shown, views, runnerAt = null, isClic
   return (
     <div className="board">
       <div className="board-frame">
-        <div className="edge-label">
-          <span>Exit row</span>
-          <span className="mono">8</span>
+        <div className="board-band">
+          <span>
+            <ArrowUpToLine size={12} aria-hidden /> Exit
+          </span>
+        </div>
+        <div className="board-grid">
+        <div className="ranks" aria-hidden>
+          {rows.map((y) => (
+            <span key={y}>{y + 1}</span>
+          ))}
         </div>
         <div className="cells" role="grid" aria-label={label}>
           {rows.map((y) =>
@@ -67,6 +76,8 @@ export function Board({ label, route = [], shown, views, runnerAt = null, isClic
                   tabIndex={clickable ? 0 : -1}
                   aria-disabled={!clickable}
                   data-clickable={clickable}
+                  data-alt={(x + y) % 2 === 1}
+                  data-next={clickable && step === undefined && Boolean(isNext?.(tile))}
                   data-entry={isEntry(tile)}
                   data-exit={isExit(tile)}
                   data-route={step !== undefined}
@@ -83,9 +94,9 @@ export function Board({ label, route = [], shown, views, runnerAt = null, isClic
                   {runnerAt === tile && !view.caught ? (
                     <span className="runner" aria-hidden />
                   ) : view.caught || view.trap || view.click ? (
-                    <Bomb size={20} aria-hidden opacity={view.click ? 0.7 : 1} />
+                    <Bomb size={20} strokeWidth={1.5} aria-hidden opacity={view.click ? 0.7 : 1} />
                   ) : view.stash ? (
-                    <Gem size={20} aria-hidden opacity={view.looted ? 0.35 : 1} />
+                    <Gem size={20} strokeWidth={1.5} aria-hidden opacity={view.looted ? 0.35 : 1} />
                   ) : null}
                   {view.badge && <span className="cell-badge">{view.badge}</span>}
                 </button>
@@ -98,22 +109,25 @@ export function Board({ label, route = [], shown, views, runnerAt = null, isClic
                 points={points}
                 fill="none"
                 stroke="var(--accent)"
-                strokeOpacity="0.55"
-                strokeWidth="0.08"
+                strokeOpacity="0.9"
+                strokeWidth="0.07"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </svg>
           )}
         </div>
-        <div className="axis" aria-hidden>
+        <span aria-hidden />
+        <div className="files" aria-hidden>
           {columns.map((x) => (
             <span key={x}>{String.fromCharCode(65 + x)}</span>
           ))}
         </div>
-        <div className="edge-label">
-          <span>Entry row</span>
-          <span className="mono">1</span>
+        </div>
+        <div className="board-band">
+          <span>
+            <ArrowUpFromLine size={12} aria-hidden /> Start
+          </span>
         </div>
       </div>
     </div>

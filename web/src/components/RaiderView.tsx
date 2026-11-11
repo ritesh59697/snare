@@ -8,7 +8,7 @@ import { outcome, type Outcome, summary } from "../lib/outcome";
 import { isLocal, useGame } from "../state";
 import { Board, type CellView } from "./Board";
 import { SpyPanel } from "./SpyPanel";
-import { Button, duration } from "./ui";
+import { Button, duration, shortAddress } from "./ui";
 import { usePlayback } from "./usePlayback";
 
 type Tool = "route" | "trap" | "stash";
@@ -156,7 +156,10 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
 
   async function doRetire() {
     setBusy("retire");
-    if (await run("Retiring the vault", (s) => game.retire(s, vault.id))) await reload();
+    if (await run("Retiring the vault", (s) => game.retire(s, vault.id))) {
+      await reload();
+      await refresh();
+    }
     setBusy(null);
   }
 
@@ -171,13 +174,7 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
 
   return (
     <div className="stage">
-      <div>
-        {!claimed && (
-          <div className="notice">
-            <ShieldAlert size={16} aria-hidden />
-            Claim your starting gold in the top bar before you scan or raid.
-          </div>
-        )}
+      <div className="stage-board">
         <Board
           label={`Vault ${vault.id + 1}, planning board`}
           route={shownRoute}
@@ -185,24 +182,40 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
           views={views}
           runnerAt={runnerAt}
           isClickable={isClickable}
+          isNext={(tile) =>
+            tool === "route" && !lastPlayed && (route.length === 0 ? tile < WIDTH : canExtend(route, tile, config.maxRouteLength))
+          }
           onTile={lastPlayed && !playback.done ? undefined : onTile}
         />
-        <div className="legend" aria-hidden>
-          <span>
-            <span className="chip chip-danger">red</span> scan says a trap is near
-          </span>
-          <span>
-            <span className="chip chip-cipher">cyan</span> scan says no trap near
-          </span>
-          <span>
-            <span className="chip chip-loot">green</span> loot nearby
-          </span>
-        </div>
+        {scans.length > 0 && (
+          <div className="legend" aria-hidden>
+            <span>
+              <span className="swatch" data-scan="trap" /> Trap within one tile
+            </span>
+            <span>
+              <span className="swatch" data-scan="clear" /> No trap
+            </span>
+            <span>
+              <span className="swatch" data-scan="loot" /> Loot within one tile
+            </span>
+          </div>
+        )}
       </div>
 
-      <div>
+      <div className="side">
+        {!claimed && (
+          <div className="notice">
+            <ShieldAlert size={16} aria-hidden />
+            Claim your starting gold in the top bar before you scan or raid.
+          </div>
+        )}
         <div className="panel">
-          <h3>Plan</h3>
+          <div className="panel-head">
+            <h3>Plan your run</h3>
+            <span className="count mono">
+              {route.length}/{config.maxRouteLength} tiles
+            </span>
+          </div>
           <div className="tools" role="group" aria-label="Board tool">
             <button type="button" aria-pressed={tool === "route"} onClick={() => setTool("route")}>
               <Footprints size={16} aria-hidden /> Draw route
@@ -216,12 +229,13 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
           </div>
           <p className="hint">
             {tool === "route"
-              ? `Start on the bottom row and step to touching tiles until you reach the top. ${route.length}/${config.maxRouteLength} tiles.`
-              : `Click a tile to privately check the 3×3 around it for ${tool === "trap" ? "traps" : "loot"}. Costs ${config.scanPrice} gold. Only you can read the answer.`}
+              ? "Start on the bottom row and step to touching tiles until you reach the top."
+              : `Click a tile to privately check the 3×3 around it for ${tool === "trap" ? "traps" : "loot"}. Costs ${config.scanPrice} gold, and only you can read the answer.`}
           </p>
-          <div className="controls">
+          <div className="actions">
             <Button
               tone="primary"
+              className="btn-lg btn-grow"
               icon={<Footprints size={16} aria-hidden />}
               disabled={!ready || !claimed || !canAfford(config.ticketPrice) || ended}
               busy={busy === "raid"}
@@ -229,23 +243,35 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
             >
               Raid for {config.ticketPrice.toString()} gold
             </Button>
-            <Button tone="ghost" icon={<Undo2 size={16} aria-hidden />} disabled={route.length === 0} onClick={() => setRoute((r) => r.slice(0, -1))}>
-              Undo step
+            <Button className="btn-lg" tone="ghost" icon={<Undo2 size={16} aria-hidden />} disabled={route.length === 0} onClick={() => setRoute((r) => r.slice(0, -1))}>
+              Undo
             </Button>
-            <Button tone="ghost" icon={<RotateCcw size={16} aria-hidden />} disabled={route.length === 0} onClick={() => setRoute([])}>
+            <Button className="btn-lg" tone="ghost" icon={<RotateCcw size={16} aria-hidden />} disabled={route.length === 0} onClick={() => setRoute([])}>
               Clear
             </Button>
           </div>
-          <p className="hint">
-            Caught: your ticket goes to {owner}. Escaped: you get it back plus any stash you walked over. About one trap in four
-            jams on any raid, so a trap can click and let you live.
-          </p>
+          <dl className="stakes">
+            <div>
+              <dt data-tone="escaped">Escape</dt>
+              <dd>
+                Ticket back, plus {config.stashValue.toString()} gold for each stash you cross
+              </dd>
+            </div>
+            <div>
+              <dt data-tone="caught">Caught</dt>
+              <dd>Your ticket goes to {owner}</dd>
+            </div>
+            <div>
+              <dt>Jams</dt>
+              <dd>About one trap in four jams on any raid, so a trap can click and let you live</dd>
+            </div>
+          </dl>
         </div>
 
         {lastPlayed && playback.done && (
           <div className="panel result" data-tone={lastPlayed.escaped ? "escaped" : "caught"} role="status">
             <p className="result-title">{lastPlayed.escaped ? "You got out" : "Snap"}</p>
-            <p style={{ margin: 0 }}>{summary(lastPlayed, config.stashValue)}</p>
+            <p>{summary(lastPlayed, config.stashValue)}</p>
             {lastPlayed.clicks !== 0n && (
               <p className="hint">A trap clicked under you and jammed. Now you know where it is.</p>
             )}
@@ -261,11 +287,10 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
         )}
 
         <div className="panel">
-          <h3>Vault {vault.id + 1}</h3>
           <dl className="stat-row">
             <div className="stat">
               <dt>Owner</dt>
-              <dd>{owner}</dd>
+              <dd>{vault.isHouse ? "House" : (nameOf(vault.owner) ?? shortAddress(vault.owner))}</dd>
             </div>
             <div className="stat">
               <dt>Raids</dt>
@@ -280,14 +305,14 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
           </dl>
           {mine.length > 0 && (
             <>
-              <h3 style={{ marginTop: "var(--s4)" }}>Your runs here</h3>
+              <h3 className="panel-sub">Your runs here</h3>
               <ul className="ledger">
                 {mine
                   .slice()
                   .reverse()
                   .map((o) => (
                     <li key={o.index}>
-                      <span className="who">#{o.index + 1}</span>
+                      <span className="who mono">#{o.index + 1}</span>
                       <span>{summary(o, config.stashValue)}</span>
                       <Button size="sm" tone="ghost" onClick={() => playback.play(o)}>
                         Replay
@@ -312,11 +337,9 @@ export function RaiderView({ vault, raids, reload }: { vault: Vault; raids: Raid
             </div>
           )}
         </div>
-
-        <div className="panel" style={{ padding: 0, border: 0, background: "none" }}>
-          <SpyPanel vault={vault} raids={raids} />
-        </div>
       </div>
+
+      <SpyPanel vault={vault} raids={raids} />
     </div>
   );
 }

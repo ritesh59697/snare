@@ -13,7 +13,7 @@ import { usePlayback } from "./usePlayback";
 
 /** The owner's private view: their own layout plus every raid's outcome, all decrypted for them only. */
 export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[]; reload(): Promise<void> }) {
-  const { config, player, run, nameOf, refreshGold } = useGame();
+  const { config, player, run, nameOf, refresh, refreshGold } = useGame();
   const [layout, setLayout] = useState<{ traps: bigint; stashes: bigint[]; remaining: bigint[] } | null>(null);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [busy, setBusy] = useState(false);
@@ -77,6 +77,7 @@ export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[
     setBusy(true);
     if (await run("Retiring the vault", (s) => game.retire(s, vault.id))) {
       await reload();
+      await refresh();
       await refreshGold();
     }
     setBusy(false);
@@ -84,7 +85,7 @@ export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[
 
   return (
     <div className="stage">
-      <div>
+      <div className="stage-board">
         <Board
           label={`Vault ${vault.id + 1}, your layout`}
           route={p?.route}
@@ -94,13 +95,12 @@ export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[
         />
         <div className="legend" aria-hidden>
           <span>
-            <Lock size={12} /> Only you can see this layout
+            <Lock size={12} strokeWidth={1.5} /> Only you can see this layout
           </span>
         </div>
       </div>
-      <div>
+      <div className="side">
         <div className="panel">
-          <h3>Your vault</h3>
           <dl className="stat-row">
             <div className="stat">
               <dt>Raids</dt>
@@ -140,10 +140,10 @@ export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[
 
         <div className="panel">
           <h3>
-            <Bell size={14} aria-hidden style={{ verticalAlign: "-2px" }} /> Raids while you were away
+            <Bell size={16} strokeWidth={1.5} aria-hidden /> Raids while you were away
           </h3>
           {outcomes.length === 0 ? (
-            <p className="muted" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
+            <p className="hint" style={{ marginTop: 0 }}>
               No raids yet. Switch to another player and try to rob it.
             </p>
           ) : (
@@ -163,11 +163,9 @@ export function OwnerView({ vault, raids, reload }: { vault: Vault; raids: Raid[
             </ul>
           )}
         </div>
-
-        <div className="panel" style={{ padding: 0, border: 0, background: "none" }}>
-          <SpyPanel vault={vault} raids={raids} />
-        </div>
       </div>
+
+      <SpyPanel vault={vault} raids={raids} />
     </div>
   );
 }

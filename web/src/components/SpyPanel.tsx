@@ -1,11 +1,25 @@
 import { Wallet } from "ethers";
-import { Eye, ScanEye } from "lucide-react";
+import { Eye, Lock, ScanEye } from "lucide-react";
 import { useState } from "react";
 import { userDecrypt } from "../lib/fhe";
 import { decodeError, Status, type Raid, type Vault } from "../lib/game";
 import { tileName } from "../lib/grid";
 import { addressLink } from "../lib/network";
-import { Button, shortHandle } from "./ui";
+import { Button, shortAddress, shortHandle } from "./ui";
+
+/** How many of the newest raids the panel lists. */
+const LATEST_RAIDS = 2;
+
+/** A sealed value as the chain stores it: a ciphertext handle. The lock marks everything encrypted. */
+function Sealed({ kind, handle }: { kind: string; handle: string }) {
+  return (
+    <span className="sealed">
+      <Lock size={12} strokeWidth={1.5} aria-hidden />
+      <span title={handle}>{shortHandle(handle)}</span>
+      <span className="kind">{kind}</span>
+    </span>
+  );
+}
 
 /** What anyone reading the chain sees for this vault: routes in the clear, everything else ciphertext. */
 export function SpyPanel({ vault, raids }: { vault: Vault; raids: Raid[] }) {
@@ -27,39 +41,49 @@ export function SpyPanel({ vault, raids }: { vault: Vault; raids: Raid[] }) {
     }
   }
 
-  const latest = raids.slice(-4).reverse();
+  const latest = raids.slice(-LATEST_RAIDS).reverse();
 
   return (
-    <section className="spy" aria-labelledby="spy-title">
+    <section className="panel spy" aria-labelledby="spy-title">
       <h3 id="spy-title">
-        <ScanEye size={16} aria-hidden /> What the chain shows everyone
+        <ScanEye size={16} strokeWidth={1.5} aria-hidden /> What the chain shows everyone
       </h3>
       <dl>
         <div className="spy-row">
-          <dt>owner</dt>
-          <dd className="plain">
-            {vault.isHouse ? "nobody (house vault)" : link ? <a href={link}>{vault.owner}</a> : vault.owner}
+          <dt>Owner</dt>
+          <dd>
+            {vault.isHouse ? (
+              "nobody (house vault)"
+            ) : link ? (
+              <a href={link} title={vault.owner}>
+                {shortAddress(vault.owner)}
+              </a>
+            ) : (
+              shortAddress(vault.owner)
+            )}
           </dd>
         </div>
         <div className="spy-row">
-          <dt>traps · euint64</dt>
-          <dd>{vault.traps}</dd>
+          <dt>Traps</dt>
+          <dd>
+            <Sealed kind="euint64" handle={vault.traps} />
+          </dd>
         </div>
         {vault.remaining.map((handle, i) => (
           <div className="spy-row" key={handle + i}>
-            <dt>stash {i + 1} · euint64</dt>
-            <dd>{shortHandle(handle)}</dd>
+            <dt>Stash {i + 1}</dt>
+            <dd>
+              <Sealed kind="euint64" handle={handle} />
+            </dd>
           </div>
         ))}
         {latest.map((raid) => (
           <div className="spy-row" key={raid.index}>
-            <dt>raid {raid.index + 1}</dt>
+            <dt>Raid {raid.index + 1}</dt>
             <dd>
-              <span className="plain">route {raid.route.map(tileName).join(" ")}</span>
-              <br />
-              escaped · ebool {shortHandle(raid.escaped)}
-              <br />
-              payout · euint64 {shortHandle(raid.payout)}
+              <span>{raid.route.map(tileName).join(" ")}</span>
+              <Sealed kind="escaped · ebool" handle={raid.escaped} />
+              <Sealed kind="payout · euint64" handle={raid.payout} />
             </dd>
           </div>
         ))}
@@ -75,7 +99,7 @@ export function SpyPanel({ vault, raids }: { vault: Vault; raids: Raid[] }) {
         </p>
       )}
       {vault.status !== Status.Verified && (
-        <p className="hint" style={{ color: "#7fb5bb" }}>
+        <p className="hint">
           Routes are public. Traps, stashes, outcomes and gold stay ciphertext until the vault retires.
         </p>
       )}

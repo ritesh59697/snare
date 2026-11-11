@@ -45,10 +45,12 @@ export function BuildView() {
 
   return (
     <div className="stage">
-      <Board label="New vault layout" views={views} isClickable={() => !busy} onTile={onTile} />
-      <div>
+      <div className="stage-board">
+        <Board label="New vault layout" views={views} isClickable={() => !busy} onTile={onTile} />
+      </div>
+      <div className="side">
         <div className="panel">
-          <h3>Rig your vault</h3>
+          <h3>Place traps and stashes</h3>
           <div className="tools" role="group" aria-label="Placement tool">
             <button type="button" aria-pressed={tool === "trap"} onClick={() => setTool("trap")}>
               <Bomb size={16} aria-hidden /> Traps {traps.length}/{config.trapCount}
@@ -61,14 +63,14 @@ export function BuildView() {
             Place every trap and stash, then seal. Your browser encrypts each position before it leaves this page, so the chain
             never sees where anything is. Seven traps can never wall off the grid, so every vault can be beaten.
           </p>
-          <dl className="stat-row" style={{ marginTop: "var(--s4)" }}>
+          <dl className="stat-row" style={{ marginTop: "var(--s5)" }}>
             <div className="stat">
               <dt>Stash deposit</dt>
-              <dd>{deposit.toString()} gold</dd>
+              <dd>{deposit.toLocaleString("en-US")} gold</dd>
             </div>
             <div className="stat">
               <dt>Your gold</dt>
-              <dd>{gold === null ? "…" : gold.toString()}</dd>
+              <dd>{gold === null ? "…" : gold.toLocaleString("en-US")}</dd>
             </div>
           </dl>
           {gold !== null && gold < deposit && (
@@ -76,11 +78,11 @@ export function BuildView() {
               You can't cover the deposit, so the stashes would be sealed empty. Nobody can tell until the vault retires.
             </p>
           )}
-          <div className="controls">
-            <Button tone="primary" icon={<Lock size={16} aria-hidden />} disabled={!full || !claimed} busy={busy} onClick={seal}>
+          <div className="actions">
+            <Button tone="primary" className="btn-lg btn-grow" icon={<Lock size={16} aria-hidden />} disabled={!full || !claimed} busy={busy} onClick={seal}>
               Encrypt and seal
             </Button>
-            <Button tone="ghost" disabled={busy || (traps.length === 0 && stashes.length === 0)} onClick={() => (setTraps([]), setStashes([]))}>
+            <Button tone="ghost" className="btn-lg" disabled={busy || (traps.length === 0 && stashes.length === 0)} onClick={() => (setTraps([]), setStashes([]))}>
               Reset
             </Button>
           </div>
