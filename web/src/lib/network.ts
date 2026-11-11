@@ -20,6 +20,7 @@ export const network = {
   explorerUrl: (import.meta.env.VITE_EXPLORER_URL as string | undefined) || "",
   faucetKey: (import.meta.env.VITE_LOCAL_FAUCET_KEY as string | undefined) || "",
   faucetAmount: (import.meta.env.VITE_LOCAL_FAUCET_AMOUNT as string | undefined) || "",
+  dripUrl: (import.meta.env.VITE_DRIP_URL as string | undefined) || "",
   deployment,
 };
 

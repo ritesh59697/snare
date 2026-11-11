@@ -1,0 +1,10 @@
+{
+  "vercelProject": "snare",
+  "drip": {
+    "txs": 40,
+    "headroomBps": 20000,
+    "maxShareBps": 100,
+    "perCallerMax": 6,
+    "perCallerWindowSeconds": 3600
+  }
+}

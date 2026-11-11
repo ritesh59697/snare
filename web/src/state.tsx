@@ -22,6 +22,8 @@ type GameState = {
   gold: bigint | null;
   /** The current player has no ETH for gas on this chain. */
   needsGas: boolean;
+  /** A gas top-up for the current guest is being checked or is on its way. */
+  funding: boolean;
   fheStatus: "loading" | "ready" | "error";
   vaults: Vault[];
   selected: number | null;
@@ -60,6 +62,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [claimed, setClaimed] = useState(false);
   const [gold, setGold] = useState<bigint | null>(null);
   const [needsGas, setNeedsGas] = useState(false);
+  const [funding, setFunding] = useState(false);
   const [fheStatus, setFheStatus] = useState<"loading" | "ready" | "error">("loading");
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -123,16 +126,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!player) return;
     let cancelled = false;
     setGold(null);
+    setFunding(player.kind === "guest");
     (async () => {
+      let funded = false;
       if (player.kind === "guest") {
         try {
-          await wallet.ensureGas(player.address);
+          funded = await wallet.ensureGas(player.address, () => {
+            if (!cancelled) setToast({ tone: "info", message: "Sending this guest a little test ETH for gas…" });
+          });
+          if (funded && !cancelled) setToast({ tone: "info", message: "This guest has gas now. No faucet needed." });
         } catch (error) {
-          if (!cancelled) setToast({ tone: "error", message: `Faucet failed: ${decodeError(error)}` });
+          if (!cancelled) setToast({ tone: "error", message: `Gas top-up failed: ${decodeError(error)}` });
         }
       }
       if (cancelled) return;
-      setNeedsGas((await provider.getBalance(player.address)) === 0n);
+      setFunding(false);
+      // Right after a top-up a lagging RPC node can still report zero, so the top-up itself is trusted.
+      setNeedsGas(!funded && (await provider.getBalance(player.address)) === 0n);
       await refreshGold();
     })();
     return () => {
@@ -164,6 +174,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     claimed,
     gold,
     needsGas,
+    funding,
     fheStatus,
     vaults,
     selected,

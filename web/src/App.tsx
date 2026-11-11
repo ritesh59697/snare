@@ -97,7 +97,7 @@ function GasNotice({ address }: { address: string }) {
 }
 
 function TopBar() {
-  const { player, guests, claimed, gold, config, fheStatus, run, refreshGold, switchGuest, newGuest, connectWallet } =
+  const { player, guests, claimed, gold, config, fheStatus, funding, run, refreshGold, switchGuest, newGuest, connectWallet } =
     useGame();
   const [busy, setBusy] = useState(false);
   const activeIndex = guests.findIndex((g) => g.name === player?.name);
@@ -171,7 +171,7 @@ function TopBar() {
                 <span title="Decrypted in your browser. On-chain it is ciphertext.">{gold.toString()}</span>
               )
             ) : (
-              <Button size="sm" tone="primary" busy={busy} onClick={claim}>
+              <Button size="sm" tone="primary" busy={busy || funding} onClick={claim}>
                 Claim {config?.starterGold.toString() ?? ""} gold
               </Button>
             )}
@@ -218,8 +218,19 @@ function HowToPlay() {
 }
 
 function Sidebar() {
-  const { vaults, selected, select, setBuilding, building, run, refresh, nameOf, player, config } = useGame();
+  const { vaults, selected, select, setBuilding, building, run, refresh, nameOf, player, config, funding } = useGame();
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  // Expiry is judged by the chain's clock, re-read whenever the list changes.
+  useEffect(() => {
+    let cancelled = false;
+    void game.chainTime().then((time) => !cancelled && setNow(time));
+    return () => {
+      cancelled = true;
+    };
+  }, [vaults]);
+  const noneOpen = vaults.length > 0 && !vaults.some((v) => game.isOpen(v, config, now));
 
   async function house() {
     setBusy(true);
@@ -238,17 +249,33 @@ function Sidebar() {
         <Button tone={building ? "primary" : "default"} icon={<Plus size={16} aria-hidden />} onClick={() => setBuilding(true)}>
           Rig a vault
         </Button>
-        <Button icon={<Sparkles size={16} aria-hidden />} busy={busy} onClick={house} title="Random layout from encrypted randomness">
+        <Button
+          tone={noneOpen && !building ? "primary" : "default"}
+          icon={<Sparkles size={16} aria-hidden />}
+          busy={busy || funding}
+          onClick={house}
+          title="Random layout from encrypted randomness"
+        >
           House vault
         </Button>
       </div>
+      {noneOpen && <p className="empty">No vault is open right now. Open a house vault to raid one nobody has ever seen.</p>}
       {vaults.length === 0 ? (
         <p className="empty">No vaults yet. Open a house vault to raid one nobody has ever seen, or rig your own.</p>
       ) : (
         <ul className="vault-list">
           {vaults.map((v) => {
             const mine = player && v.owner.toLowerCase() === player.address.toLowerCase();
-            const status = v.status === Status.Active ? (mine ? "your vault" : "open") : v.status === Status.Retired ? "retired" : "verified";
+            const status =
+              v.status === Status.Active
+                ? !game.isOpen(v, config, now)
+                  ? "ended"
+                  : mine
+                    ? "your vault"
+                    : "open"
+                : v.status === Status.Retired
+                  ? "retired"
+                  : "verified";
             return (
               <li key={v.id}>
                 <button type="button" className="vault-item" aria-current={selected === v.id} onClick={() => select(v.id)}>
@@ -288,13 +315,16 @@ function BuildStage() {
 }
 
 function VaultStage() {
-  const { vaults, selected, select, player, nameOf } = useGame();
+  const { vaults, selected, select, player, nameOf, config } = useGame();
   const [raids, setRaids] = useState<Raid[]>([]);
   const [vault, setVault] = useState<Vault | null>(null);
 
+  // Land on the newest vault that still takes raids; fall back to the newest of any kind.
   useEffect(() => {
-    if (selected === null && vaults.length > 0) select(vaults[0].id);
-  }, [selected, vaults, select]);
+    if (selected !== null || vaults.length === 0) return;
+    const now = Math.floor(Date.now() / 1000);
+    select((vaults.find((v) => game.isOpen(v, config, now)) ?? vaults[0]).id);
+  }, [selected, vaults, select, config]);
 
   const reload = useCallback(async () => {
     if (selected === null) return;

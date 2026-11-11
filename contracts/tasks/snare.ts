@@ -165,18 +165,38 @@ async function liveFees(hre: { ethers: typeof import("hardhat").ethers }) {
 
 // Tops up a player (for example a browser guest) with enough gas for a number of transactions, sized
 // from the live block gas limit and fees:  npx hardhat --network sepolia snare:fund --to 0x... --txs 40
+// A fixed amount instead (for example to fill the site's gas drip wallet): --eth 0.01
 task("snare:fund", "Sends a player enough ETH for a number of Snare transactions at current fees")
   .addParam("to", "Address to fund")
   .addOptionalParam("txs", "How many transactions to cover", "40")
-  .setAction(async ({ to, txs }: { to: string; txs: string }, hre) => {
+  .addOptionalParam("eth", "Send exactly this much ETH instead of sizing by transactions")
+  .setAction(async ({ to, txs, eth }: { to: string; txs: string; eth?: string }, hre) => {
     const { ethers } = hre;
     const [funder] = await ethers.getSigners();
     const fees = await liveFees(hre);
     const blockGasLimit = (await ethers.provider.getBlock("latest"))!.gasLimit;
-    const value = blockGasLimit * fees.maxFeePerGas * BigInt(txs);
+    const value = eth ? ethers.parseEther(eth) : blockGasLimit * fees.maxFeePerGas * BigInt(txs);
     const receipt = await (await funder.sendTransaction({ to, value, ...fees })).wait();
     console.log(`sent ${ethers.formatEther(value)} ETH to ${to} (tx ${receipt!.hash})`);
   });
+
+// Opens a house vault from account 0, so visitors always find one to raid:
+//   npx hardhat --network sepolia snare:house
+task("snare:house", "Opens a house vault laid out by encrypted randomness").setAction(async (_args, hre) => {
+  const { ethers, deployments } = hre;
+  const game = await ethers.getContractAt("Snare", (await deployments.get("Snare")).address);
+  const receipt = (await (await game.createHouseVault(await liveFees(hre))).wait())!;
+  for (const log of receipt.logs) {
+    const parsed = game.interface.parseLog(log);
+    if (parsed?.name !== "VaultCreated") continue;
+    const closes = new Date(Number(parsed.args.expiresAt) * 1000).toISOString();
+    console.log(
+      `opened house vault ${parsed.args.vaultId} (shown as #${parsed.args.vaultId + 1n}), takes raids until ${closes} (tx ${receipt.hash})`,
+    );
+    return;
+  }
+  throw new Error("VaultCreated not found in the receipt");
+});
 
 // Retires a vault as its owner (account 0):  npx hardhat --network sepolia snare:retire --vault 0
 task("snare:retire", "Retires a vault owned by account 0")

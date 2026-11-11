@@ -63,14 +63,34 @@ export function guestSigner(guest: Guest): Wallet {
   return new Wallet(guest.key, provider);
 }
 
-/** On a local chain, tops a guest up from the dev faucet key so it can pay gas. */
-export async function ensureGas(address: string): Promise<boolean> {
-  if (!network.faucetKey || !network.faucetAmount) return false;
-  const amount = parseEther(network.faucetAmount);
-  const balance = await provider.getBalance(address);
-  if (balance * 2n >= amount) return false;
-  const faucet = new Wallet(network.faucetKey, provider);
-  await (await faucet.sendTransaction({ to: address, value: amount })).wait();
+const DRIP_CONFIRM_TIMEOUT_MS = 120_000;
+
+/**
+ * Makes sure a guest can pay gas. A local chain uses the dev faucet key. A hosted site asks its gas
+ * drip, which sizes the top-up from live fees. Resolves to true when a top-up arrived.
+ */
+export async function ensureGas(address: string, onSending?: () => void): Promise<boolean> {
+  if (network.faucetKey && network.faucetAmount) {
+    const amount = parseEther(network.faucetAmount);
+    const balance = await provider.getBalance(address);
+    if (balance * 2n >= amount) return false;
+    onSending?.();
+    const faucet = new Wallet(network.faucetKey, provider);
+    await (await faucet.sendTransaction({ to: address, value: amount })).wait();
+    return true;
+  }
+  if (!network.dripUrl) return false;
+  const response = await fetch(network.dripUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ address }),
+  });
+  const body = (await response.json().catch(() => ({}))) as { funded?: boolean; hash?: string; error?: string };
+  if (!response.ok) throw new Error(body.error ?? `The gas drip answered ${response.status}.`);
+  if (!body.funded || !body.hash) return false;
+  onSending?.();
+  const receipt = await provider.waitForTransaction(body.hash, 1, DRIP_CONFIRM_TIMEOUT_MS);
+  if (receipt) provider.pinAfterWrite(receipt.blockNumber);
   return true;
 }
 

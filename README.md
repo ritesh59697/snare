@@ -174,8 +174,35 @@ cd web && npm run build:sepolia
 The frontend reads the deployed address and ABI from `contracts/deployments/sepolia` (via
 `web/scripts/sync.mjs`) and its public settings from `web/.env.sepolia`. `web/dist` is a static site.
 
-On Sepolia, guest players need a little test ETH for gas; the app shows the address to fund, or you
-can connect a browser wallet instead.
+### Hosting, and gas for guests
+
+On the hosted site, a guest player gets test ETH automatically from a small gas drip
+(`web/api/drip.js`, a serverless function), so nobody needs a faucet or a wallet to play. The drip
+sizes each top-up from live fees and from the costliest transaction of the measured round, never
+sends more than a small share of what its wallet holds, and skips players who already have enough.
+If it can't help (for example when Sepolia fees spike), the app shows the address to fund, and a
+browser wallet works too.
+
+```bash
+cd web && npm run package:sepolia
+```
+
+That builds the site and assembles `web/.site/snare`: the static files plus the drip function and
+its generated settings. Upload that folder to Vercel. The drip needs one secret there, `DRIP_KEY`,
+a testnet-only wallet holding a little Sepolia ETH; its limits are in `web/site.config.json`.
+
+Two tasks help keep the live game ready:
+
+```bash
+cd contracts && npx hardhat --network sepolia snare:house
+```
+
+```bash
+cd contracts && npx hardhat --network sepolia snare:fund --to <drip wallet> --eth 0.01
+```
+
+The first opens a house vault from account 0 (anyone can also do it with the "House vault" button);
+the second refills the drip wallet.
 
 ## Project layout
 

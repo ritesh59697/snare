@@ -77,6 +77,12 @@ export async function loadVault(id: number): Promise<Vault> {
   };
 }
 
+/** True while a vault still takes raids: active, not past its expiry, and not full. */
+export function isOpen(vault: Vault, config: Config | null, now: number): boolean {
+  if (vault.status !== Status.Active || now >= vault.expiresAt) return false;
+  return config === null || vault.raidCount < config.maxRaidsPerVault;
+}
+
 export async function loadVaults(): Promise<Vault[]> {
   const count = Number(await snare().vaultCount());
   const vaults = await Promise.all(Array.from({ length: count }, (_, id) => loadVault(id)));

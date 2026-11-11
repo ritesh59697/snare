@@ -12,7 +12,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "dev:sepolia": "node scripts/sync.mjs && vite --mode sepolia",
-    "build:sepolia": "node scripts/sync.mjs && tsc -b && vite build --mode sepolia"
+    "build:sepolia": "node scripts/sync.mjs && tsc -b && vite build --mode sepolia",
+    "package:sepolia": "npm run build:sepolia && node scripts/package-site.mjs sepolia"
   },
   "dependencies": {
     "@fhevm/mock-utils": "^0.4.2",

@@ -26,3 +26,6 @@ dist-ssr
 # generated
 src/generated
 .env.local
+
+# folder assembled for the Vercel upload
+.site
