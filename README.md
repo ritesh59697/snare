@@ -16,6 +16,45 @@ offline, and nobody, including the raider, learns where an unfired trap is.
 | Tests | 30 passing on Zama's FHE mock (`cd contracts && npm test`) |
 | Frontend | [`web/`](web), Vite + React, Zama relayer SDK |
 
+## Judges: start here
+
+No wallet, no faucet and no sign-up. The site makes a guest player in your browser and a small gas
+drip pays its Sepolia fees. Every on-chain step takes about 10–20 seconds while Zama's relayer works.
+
+| | What you see | What it proves | Time |
+|---|---|---|---|
+| **A** | Raid a vault nobody has ever seen | The chain judges your run against encrypted traps | 2 min |
+| **B** | Try to read the traps as a stranger | Zama's access control refuses you | 1 min |
+| **C** | Rig your own vault, raid it as a second player, open the books | Every past raid is replayed in plaintext and checked on-chain | 6 min |
+
+**A. Raid a house vault**
+
+1. Open **https://snare-ashy.vercel.app**, press **Play**, then **Claim 1,000 gold** at the top. Your balance is
+   decrypted in your browser; on-chain it is ciphertext.
+2. Press **House vault**. Its 7 traps and 3 stashes come from on-chain encrypted randomness, so
+   nobody, including us, knows the layout.
+3. Draw a route from the bottom row to the top row and press **Raid for 50 gold**. About 16 seconds
+   later the run plays out: **Escape** (ticket back plus 100 gold per stash walked over) or **Caught**
+   on one tile. Only that tile is revealed to you; every other trap stays ciphertext.
+4. Optional: **Scan traps** or **Scan loot** (10 gold) privately asks whether a 3×3 area holds
+   something. Only you can read the answer.
+
+**B. Try to cheat**
+
+On any vault, the panel **What the chain shows everyone** lists the stored handles. Press **Try to
+decrypt the traps as a stranger**: the relayer refuses, because the trap ciphertext is granted only
+to the owner until the vault retires.
+
+**C. Owner, raider and the books**
+
+1. Press **Rig a vault**, place 7 traps and 3 stashes, then **Encrypt and seal**. Each position is
+   encrypted in your browser before it is sent.
+2. Press the **New guest player** icon at the top, claim gold, open your first player's vault and raid
+   it once or twice. Switch back to the first player with the player menu at the top.
+3. As the owner, press **Retire and open the books**, then **Open the books**. The contract checks
+   Zama's decryption proof, replays every raid in plaintext and shows **Books verified** only if each
+   one matches what the encrypted game decided at the time.
+
 ## Why this game can't exist on a transparent chain
 
 On a public blockchain a trap's position is public the moment it is stored. The usual workaround is
